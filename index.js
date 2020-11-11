@@ -126,6 +126,24 @@ async function genius(artist, song) {
 
 }
 
+async function syair(artist, song) {
+	const name = `${artist} - ${song}`
+	const sanitizedName = name.replace(/\//g, '_').replace(/ /g, '+').replace(/&/g, '%26')
+	const searchResult = await (await fetch(`https://syair.info/search?q=${sanitizedName}`)).text()
+	const firstResult = searchResult.match(new RegExp('<div class="li">1\. <a href="/lyrics/([^"]+)" target="_blank" class="title">'))
+	if (!firstResult) return null
+	
+	const lyricsPage = await (await fetch(`https://syair.info/lyrics/${firstResult[1]}`)).text()
+
+	const downloadLink = lyricsPage.match(new RegExp('<a href="/download\.php\?([^"]+)" rel="nofollow" target="_blank"><span>Download '))
+	if (!downloadLink) throw new Error("bruh")
+	const lyrics = await (await fetch(`https://syair.info/download.php${downloadLink[1]}`)).text()
+	return {
+		lyrics,
+		service: 'syair info'
+	}
+}
+
 app.get("/:artist/:song", async (req, res) => {
 	const { artist, song } = req.params
 	let promises = [
@@ -133,12 +151,12 @@ app.get("/:artist/:song", async (req, res) => {
 		lyricsMania(`${lyricsManiaUrl(song)}_lyrics_${lyricsManiaUrl(artist)}`),
 		lyricsMania(`${lyricsManiaUrl(song)}_${lyricsManiaUrl(artist)}`),
 		lyricsMania(`${lyricsManiaUrlAlt(song)}_lyrics_${encodeURIComponent(lyricsManiaUrlAlt(artist))}`),
-		azLyrics(artist, song)
+		azLyrics(artist, song),
+		// syair(artist, song)
 	]
 	try {
 		const data = await Promise.allSettled(promises)
-
-		res.json(data.filter(o => o.status === "fulfilled").map(o => ({...o.value})))
+		res.json(data.filter(o => o.status === "fulfilled").map(o => ({ ...o.value })))
 	} catch (e) {
 		console.log(e)
 		res.json({ error: 'Impossible de recuperer des paroles' })
